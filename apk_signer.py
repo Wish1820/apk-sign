@@ -568,6 +568,35 @@ def get_template_html():
 </body>
 </html>'''
 
+def find_local_java():
+    """
+    查找脚本同目录下的 jdk-* 目录中的 java 命令
+    返回 java 命令路径或 None
+    """
+    import glob
+
+    jdk_pattern = os.path.join(SCRIPT_DIR, 'jdk-*')
+    jdk_dirs = glob.glob(jdk_pattern)
+    print(f"[DEBUG] 查找 JDK: {jdk_pattern}, 找到: {jdk_dirs}")
+
+    if not jdk_dirs:
+        return None
+
+    # 选择最新版本（按字母排序，最后一个）
+    jdk_dir = sorted(jdk_dirs)[-1]
+    print(f"[DEBUG] 使用 JDK 目录: {jdk_dir}")
+
+    if os.name == 'nt':
+        java_path = os.path.join(jdk_dir, 'bin', 'java.exe')
+    else:
+        java_path = os.path.join(jdk_dir, 'bin', 'java')
+
+    if os.path.exists(java_path):
+        print(f"[DEBUG] 找到 java: {java_path}")
+        return java_path
+
+    return None
+
 def find_apksigner():
     """
     查找 apksigner 工具
@@ -577,6 +606,9 @@ def find_apksigner():
 
     print(f"[DEBUG] 脚本目录: {SCRIPT_DIR}")
     print(f"[DEBUG] 操作系统: {os.name} ({'Windows' if os.name == 'nt' else 'Unix'})")
+
+    # 0. 优先查找本地 JDK（脚本同目录下的 jdk-* 目录）
+    local_java = find_local_java()
 
     # 1. 直接在 PATH 中查找 apksigner 命令
     if shutil.which('apksigner'):
@@ -675,7 +707,12 @@ def sign_apk(apk_path, x509_path, pk8_path, output_path):
     # 如果返回的是 (前缀, jar路径) 元组，说明需要用 java -jar 运行
     if isinstance(apksigner, tuple):
         cmd_prefix, jar_path = apksigner
-        cmd = f'{cmd_prefix} "{jar_path}" sign --key "{pk8_path}" --cert "{x509_path}" --out "{output_path}" --v2-signing-enabled true --v3-signing-enabled true "{apk_path}"'
+        # 优先使用本地 JDK 的 java 命令
+        local_java = find_local_java()
+        if local_java:
+            cmd = f'"{local_java}" -jar "{jar_path}" sign --key "{pk8_path}" --cert "{x509_path}" --out "{output_path}" --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true "{apk_path}"'
+        else:
+            cmd = f'{cmd_prefix} "{jar_path}" sign --key "{pk8_path}" --cert "{x509_path}" --out "{output_path}" --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true "{apk_path}"'
         print(f"[DEBUG] 执行命令: {cmd}")
         result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
     else:
