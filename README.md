@@ -109,7 +109,9 @@ python3 apk_signer.py
 
 ### 下载地址
 
-访问：https://developer.android.com/tools/releases/build-tools?hl=zh-cn
+访问build-tools：https://developer.android.com/tools/releases/build-tools?hl=zh-cn
+
+访问command-line-tools：https://developer.android.com/studio?hl=zh-cn#command-line-tools-only
 
 下载对应版本的 Build Tools（如 34.0.0）
 

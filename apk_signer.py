@@ -569,66 +569,143 @@ def get_template_html():
 </html>'''
 
 def find_apksigner():
-    """查找 apksigner 工具"""
-    # 1. 直接在 PATH 中查找
+    """
+    查找 apksigner 工具
+    返回 (命令前缀, jar路径) 或 单个命令字符串
+    """
+    import glob
+
+    print(f"[DEBUG] 脚本目录: {SCRIPT_DIR}")
+    print(f"[DEBUG] 操作系统: {os.name} ({'Windows' if os.name == 'nt' else 'Unix'})")
+
+    # 1. 直接在 PATH 中查找 apksigner 命令
     if shutil.which('apksigner'):
+        print("[DEBUG] 在 PATH 中找到 apksigner")
         return 'apksigner'
+    if os.name == 'nt':
+        for ext in ['', '.bat', '.cmd', '.exe']:
+            path = shutil.which('apksigner' + ext)
+            if path:
+                print(f"[DEBUG] 在 PATH 中找到 apksigner{ext}: {path}")
+                return 'apksigner' + ext
 
     # 2. 查找脚本同目录下的 build-tools
-    #    支持 build-tools/版本号/apksigner 或 build-tools/latest/apksigner
     script_build_tools = os.path.join(SCRIPT_DIR, 'build-tools')
+    print(f"[DEBUG] 查找 build-tools: {script_build_tools}")
+
     if os.path.isdir(script_build_tools):
-        # 查找最新版本
-        import glob
-        versions = glob.glob(os.path.join(script_build_tools, '*', 'apksigner'))
-        if versions:
-            return versions[-1]  # 返回最新版本
+        print(f"[DEBUG] build-tools 目录存在，版本: {os.listdir(script_build_tools)}")
+        # 遍历 build-tools 下的每个版本目录
+        for version_dir in os.listdir(script_build_tools):
+            version_path = os.path.join(script_build_tools, version_dir)
+            print(f"[DEBUG] 检查版本目录: {version_path}")
+            if os.path.isdir(version_path):
+                # Windows: 优先用 java -jar (原生 apksigner 是 Linux 二进制，Windows 无法直接运行)
+                if os.name == 'nt':
+                    # 检查 java 是否可用
+                    java_path = shutil.which('java')
+                    print(f"[DEBUG] java 路径: {java_path}")
+                    jar_path = os.path.join(version_path, 'lib', 'apksigner.jar')
+                    print(f"[DEBUG] 检查 JAR: {jar_path}, 存在: {os.path.exists(jar_path)}")
+                    if java_path and os.path.exists(jar_path):
+                        print(f"[DEBUG] 使用 java -jar: {jar_path}")
+                        return ('java -jar', jar_path)
+                    # 再尝试找 .bat 或 .cmd
+                    for name in ['apksigner.bat', 'apksigner.cmd', 'apksigner.exe', 'apksigner']:
+                        apksigner_path = os.path.join(version_path, name)
+                        print(f"[DEBUG] 检查文件: {apksigner_path}, 存在: {os.path.exists(apksigner_path)}")
+                        if os.path.exists(apksigner_path):
+                            print(f"[DEBUG] 找到 apksigner: {apksigner_path}")
+                            return apksigner_path
+                else:
+                    # Linux/Mac: 查找 apksigner
+                    apksigner_path = os.path.join(version_path, 'apksigner')
+                    if os.path.exists(apksigner_path):
+                        print(f"[DEBUG] 找到 apksigner: {apksigner_path}")
+                        return apksigner_path
+    else:
+        print(f"[DEBUG] build-tools 目录不存在")
 
     # 3. 常见系统路径
-    common_paths = [
-        '/usr/bin/apksigner',
-        '/usr/local/bin/apksigner',
-        os.path.expanduser('~/Android/Sdk/build-tools/*/apksigner'),
-        '/opt/android-sdk/build-tools/*/apksigner'
-    ]
+    common_paths = []
+    if os.name == 'nt':
+        common_paths.extend([
+            os.path.expanduser('~\\Android\\Sdk\\build-tools\\*\\apksigner.bat'),
+            os.path.expanduser('~\\Android\\Sdk\\build-tools\\*\\apksigner.cmd'),
+            'C:\\Android\\build-tools\\*\\apksigner.bat',
+        ])
+    else:
+        common_paths.extend([
+            '/usr/bin/apksigner',
+            '/usr/local/bin/apksigner',
+            os.path.expanduser('~/Android/Sdk/build-tools/*/apksigner'),
+            '/opt/android-sdk/build-tools/*/apksigner'
+        ])
+
+    print(f"[DEBUG] 检查常见路径: {common_paths}")
     for p in common_paths:
-        if '*' in p:
+        if '*' in p or '?' in p:
             matches = glob.glob(p)
+            print(f"[DEBUG] glob {p}: {matches}")
             if matches:
                 return matches[-1]
         elif os.path.exists(p):
+            print(f"[DEBUG] 找到: {p}")
             return p
 
+    print("[DEBUG] 未找到 apksigner")
     return None
 
 def sign_apk(apk_path, x509_path, pk8_path, output_path):
     """
     使用 apksigner 对 APK 进行签名
     """
-    apksigner_cmd = find_apksigner()
-    if not apksigner_cmd:
+    print(f"[DEBUG] 签名请求:")
+    print(f"  APK: {apk_path}")
+    print(f"  x509: {x509_path}")
+    print(f"  pk8: {pk8_path}")
+    print(f"  output: {output_path}")
+
+    apksigner = find_apksigner()
+    if not apksigner:
         raise Exception("未找到 apksigner，请将 build-tools 复制到脚本目录下")
 
-    cmd = [
-        apksigner_cmd,
-        'sign',
-        '--key', pk8_path,
-        '--cert', x509_path,
-        '--out', output_path,
-        apk_path
-    ]
+    print(f"[DEBUG] 使用 apksigner: {apksigner}")
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    # 如果返回的是 (前缀, jar路径) 元组，说明需要用 java -jar 运行
+    if isinstance(apksigner, tuple):
+        cmd_prefix, jar_path = apksigner
+        cmd = f'{cmd_prefix} "{jar_path}" sign --key "{pk8_path}" --cert "{x509_path}" --out "{output_path}" "{apk_path}"'
+        print(f"[DEBUG] 执行命令: {cmd}")
+        result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+    else:
+        cmd = [
+            apksigner,
+            'sign',
+            '--key', pk8_path,
+            '--cert', x509_path,
+            '--out', output_path,
+            apk_path
+        ]
+        print(f"[DEBUG] 执行命令: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+    print(f"[DEBUG] 返回码: {result.returncode}")
+    print(f"[DEBUG] stdout: {result.stdout}")
+    print(f"[DEBUG] stderr: {result.stderr}")
+
     if result.returncode != 0:
-        raise Exception(f"签名失败: {result.stderr}")
+        error_msg = result.stderr if result.stderr else result.stdout
+        raise Exception(f"签名失败: {error_msg}")
     return True
 
 def get_available_signing_tools():
     """检测可用的签名工具"""
     tools = []
 
-    # 检查 apksigner
-    if shutil.which('apksigner'):
+    # 检查 apksigner (使用完整查找逻辑)
+    apksigner = find_apksigner()
+    if apksigner:
         tools.append('apksigner')
 
     # 检查 jarsigner
@@ -642,6 +719,15 @@ class APKHandler(SimpleHTTPRequestHandler):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=TEMP_DIR, **kwargs)
+
+    def send_error_response(self, code, message):
+        """发送错误响应（支持中文）"""
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.end_headers()
+        import json
+        response = json.dumps({'error': message}, ensure_ascii=False)
+        self.wfile.write(response.encode('utf-8'))
 
     def do_GET(self):
         """处理GET请求"""
@@ -686,87 +772,116 @@ class APKHandler(SimpleHTTPRequestHandler):
         if self.path == '/api/sign':
             self.handle_sign()
         else:
-            self.send_error(404)
+            self.send_error_response(404, 'API not found')
 
     def handle_sign(self):
         """处理签名请求"""
+        print(f"[DEBUG] 收到签名请求")
         try:
             # 解析multipart数据
             content_type = self.headers.get('Content-Type', '')
+            print(f"[DEBUG] Content-Type: {content_type}")
             if 'multipart/form-data' not in content_type:
-                self.send_error(400, '需要 multipart/form-data')
+                self.send_error_response(400, '需要 multipart/form-data')
                 return
 
             # 读取请求体
             content_length = int(self.headers.get('Content-Length', 0))
+            print(f"[DEBUG] Content-Length: {content_length}")
             body = self.rfile.read(content_length)
+            print(f"[DEBUG] 读取到 {len(body)} 字节")
 
             # 解析表单数据
             boundary = content_type.split('boundary=')[1] if 'boundary=' in content_type else None
             if not boundary:
-                self.send_error(400, '无法解析表单边界')
+                self.send_error_response(400, '无法解析表单边界')
                 return
 
-            # 分割数据
-            parts = body.split(('--' + boundary).encode())
+            # 去除可能的引号
+            boundary = boundary.strip('"\'')
+            print(f"[DEBUG] Boundary: {boundary}")
+
+            # 手动解析 multipart
+            import re
+
+            # 分割各部分
+            boundary_bytes = ('--' + boundary).encode()
+            parts = body.split(boundary_bytes)
+
+            print(f"[DEBUG] 分割为 {len(parts)} 个部分")
+
             form_data = {}
             apk_data = None
 
             for part in parts:
-                if not part or part in (b'', b'--', b'--\r\n'):
+                if not part or part.strip() in (b'', b'--', b'--\r\n'):
                     continue
 
-                # 解析每个part的头部和内容
-                lines = part.split(b'\r\n')
-                header_found = False
-                content_disposition = None
-                content_type_header = None
-                name = None
-                filename = None
+                # 分离 header 和 content
+                header_end = part.find(b'\r\n\r\n')
+                if header_end == -1:
+                    continue
 
-                for i, line in enumerate(lines):
-                    if line == b'':
-                        header_found = True
-                        continue
-                    if header_found:
-                        # 这是内容
-                        if content_disposition and name == b'apkFile':
-                            # APK文件内容在第一个空行之后
-                            content_start = part.find(b'\r\n\r\n') + 4
-                            apk_data = part[content_start:].rstrip(b'\r\n')
-                        break
-                    if line.startswith(b'Content-Disposition:'):
-                        content_disposition = line.decode('utf-8')
-                        import re
-                        name_match = re.search(r'name="([^"]+)"', content_disposition)
-                        filename_match = re.search(r'filename="([^"]+)"', content_disposition)
-                        if name_match:
-                            name = name_match.group(1)
-                        if filename_match:
-                            filename = filename_match.group(1)
-                    elif line.startswith(b'Content-Type:'):
-                        content_type_header = line.decode('utf-8')
+                header_part = part[:header_end]
+                content_part = part[header_end + 4:]
 
-                # 收集文本字段
-                if content_disposition and name and name != 'apkFile':
-                    # 找到对应内容的起始位置
-                    header_end = part.find(b'\r\n\r\n')
-                    if header_end > 0:
-                        value = part[header_end+4:].rstrip(b'\r\n').decode('utf-8')
-                        form_data[name] = value
+                # 解析 header
+                headers = {}
+                for line in header_part.decode('utf-8', errors='ignore').split('\r\n'):
+                    if ':' in line:
+                        key, value = line.split(':', 1)
+                        headers[key.strip().lower()] = value.strip()
+
+                content_disposition = headers.get('content-disposition', '')
+                if not content_disposition:
+                    continue
+
+                # 提取 name 和 filename
+                name_match = re.search(r'name="([^"]+)"', content_disposition)
+                filename_match = re.search(r'filename="([^"]+)"', content_disposition)
+
+                if not name_match:
+                    continue
+
+                name = name_match.group(1)
+                filename = filename_match.group(1) if filename_match else None
+
+                print(f"[DEBUG] 字段: name={name}, filename={filename}")
+
+                if name == 'apkFile' and filename:
+                    # 去除末尾的 \r\n--
+                    if content_part.endswith(b'\r\n'):
+                        content_part = content_part[:-2]
+                    apk_data = content_part
+                    print(f"[DEBUG] APK文件: {filename}, 大小: {len(apk_data) if apk_data else 0}")
+                else:
+                    # 去除末尾的 \r\n
+                    if content_part.endswith(b'\r\n'):
+                        content_part = content_part[:-2]
+                    try:
+                        form_data[name] = content_part.decode('utf-8')
+                        print(f"[DEBUG] 文本字段 {name}: {form_data[name][:50]}...")
+                    except:
+                        pass
+
+            print(f"[DEBUG] form_data: {form_data}")
+            print(f"[DEBUG] apk_data 长度: {len(apk_data) if apk_data else 0}")
 
             android_version = form_data.get('androidVersion', '')
             sign_target = form_data.get('signTarget', '')
 
             if not android_version or not sign_target:
-                self.send_error(400, '缺少必要参数')
+                print(f"[DEBUG] 缺少参数: androidVersion={android_version}, signTarget={sign_target}")
+                self.send_error_response(400, '缺少必要参数')
                 return
 
             if not apk_data:
-                self.send_error(400, '未找到APK文件')
+                print(f"[DEBUG] 没有APK数据")
+                self.send_error_response(400, '未找到APK文件')
                 return
 
             # 查找配置
+            print(f"[DEBUG] 加载配置查找: {android_version} - {sign_target}")
             config = load_config()
             target_config = None
             for item in config.get('targets', []):
@@ -775,42 +890,61 @@ class APKHandler(SimpleHTTPRequestHandler):
                     break
 
             if not target_config:
-                self.send_error(400, f'未找到配置: {android_version} - {sign_target}')
+                print(f"[DEBUG] 未找到配置")
+                self.send_error_response(400, f'未找到配置: {android_version} - {sign_target}')
                 return
 
             x509_path = target_config.get('platform_x509', '')
             pk8_path = target_config.get('platform_pk8', '')
 
             if not x509_path or not pk8_path:
-                self.send_error(400, '签名配置文件路径未配置')
+                print(f"[DEBUG] 签名路径未配置")
+                self.send_error_response(400, '签名配置文件路径未配置')
                 return
 
             # 解析路径（支持相对路径）
             x509_path = resolve_path(x509_path)
             pk8_path = resolve_path(pk8_path)
 
+            print(f"[DEBUG] x509_path: {x509_path}")
+            print(f"[DEBUG] pk8_path: {pk8_path}")
+
             # 验证签名文件存在
             if not os.path.exists(x509_path):
-                self.send_error(400, f'证书文件不存在: {x509_path}')
+                print(f"[DEBUG] x509文件不存在")
+                self.send_error_response(400, f'证书文件不存在: {x509_path}')
                 return
             if not os.path.exists(pk8_path):
-                self.send_error(400, f'密钥文件不存在: {pk8_path}')
+                print(f"[DEBUG] pk8文件不存在")
+                self.send_error_response(400, f'密钥文件不存在: {pk8_path}')
                 return
 
             # 保存上传的APK
+            print(f"[DEBUG] 保存APK文件...")
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             input_apk = os.path.join(TEMP_DIR, f'input_{timestamp}.apk')
             output_apk = os.path.join(TEMP_DIR, f'signed_{timestamp}_{sign_target}.apk')
+            print(f"[DEBUG] input_apk: {input_apk}")
+            print(f"[DEBUG] output_apk: {output_apk}")
 
             with open(input_apk, 'wb') as f:
                 f.write(apk_data)
+            print(f"[DEBUG] APK已保存，大小: {len(apk_data)} bytes")
 
             # 执行签名
+            print(f"[DEBUG] 开始执行签名...")
             sign_apk(input_apk, x509_path, pk8_path, output_apk)
+            print(f"[DEBUG] 签名完成")
 
             # 读取签名后的APK
+            print(f"[DEBUG] 读取签名后的APK: {output_apk}")
+            if not os.path.exists(output_apk):
+                print(f"[ERROR] 签名输出文件不存在!")
+                self.send_error_response(500, '签名失败：输出文件未生成')
+                return
             with open(output_apk, 'rb') as f:
                 signed_data = f.read()
+            print(f"[DEBUG] 签名后APK大小: {len(signed_data)} bytes")
 
             # 清理临时文件
             try:
@@ -822,15 +956,22 @@ class APKHandler(SimpleHTTPRequestHandler):
             # 发送响应
             self.send_response(200)
             self.send_header('Content-Type', 'application/octet-stream')
-            self.send_header('Content-Disposition', f'attachment; filename="signed_{sign_target}.apk"')
+            # 如果签名目标包含中文，使用时间戳作为文件名
+            import re
+            if re.search(r'[一-鿿]', sign_target):
+                safe_filename = f'signed_{timestamp}.apk'
+            else:
+                safe_filename = f'signed_{sign_target}.apk'
+            self.send_header('Content-Disposition', f'attachment; filename="{safe_filename}"')
             self.send_header('Content-Length', len(signed_data))
             self.end_headers()
             self.wfile.write(signed_data)
 
         except Exception as e:
             import traceback
+            print(f"[ERROR] 签名过程出错: {e}")
             traceback.print_exc()
-            self.send_error(500, str(e))
+            self.send_error_response(500, str(e))
 
     def log_message(self, format, *args):
         """自定义日志格式"""
