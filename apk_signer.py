@@ -675,7 +675,7 @@ def sign_apk(apk_path, x509_path, pk8_path, output_path):
     # 如果返回的是 (前缀, jar路径) 元组，说明需要用 java -jar 运行
     if isinstance(apksigner, tuple):
         cmd_prefix, jar_path = apksigner
-        cmd = f'{cmd_prefix} "{jar_path}" sign --key "{pk8_path}" --cert "{x509_path}" --out "{output_path}" "{apk_path}"'
+        cmd = f'{cmd_prefix} "{jar_path}" sign --key "{pk8_path}" --cert "{x509_path}" --out "{output_path}" --v2-signing-enabled true --v3-signing-enabled true "{apk_path}"'
         print(f"[DEBUG] 执行命令: {cmd}")
         result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
     else:
@@ -685,6 +685,8 @@ def sign_apk(apk_path, x509_path, pk8_path, output_path):
             '--key', pk8_path,
             '--cert', x509_path,
             '--out', output_path,
+            '--v2-signing-enabled', 'true',
+            '--v3-signing-enabled', 'true',
             apk_path
         ]
         print(f"[DEBUG] 执行命令: {' '.join(cmd)}")
