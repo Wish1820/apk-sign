@@ -933,6 +933,24 @@ class APKHandler(SimpleHTTPRequestHandler):
                 f.write(apk_data)
             print(f"[DEBUG] APK已保存，大小: {len(apk_data)} bytes")
 
+            # 验证 APK 是否完整
+            import zipfile
+            try:
+                with zipfile.ZipFile(input_apk, 'r') as zf:
+                    namelist = zf.namelist()
+                    print(f"[DEBUG] APK 包含 {len(namelist)} 个文件")
+                    if 'AndroidManifest.xml' not in namelist:
+                        print(f"[ERROR] APK 缺少 AndroidManifest.xml")
+                        self.send_error_response(400, f'APK 文件不完整或已损坏，缺少 AndroidManifest.xml')
+                        os.remove(input_apk)
+                        return
+                    print(f"[DEBUG] APK 验证通过")
+            except zipfile.BadZipFile:
+                print(f"[ERROR] APK 不是有效的 ZIP 文件")
+                self.send_error_response(400, 'APK 文件已损坏，不是有效的 APK')
+                os.remove(input_apk)
+                return
+
             # 执行签名
             print(f"[DEBUG] 开始执行签名...")
             sign_apk(input_apk, x509_path, pk8_path, output_apk)
