@@ -568,29 +568,46 @@ def get_template_html():
 </body>
 </html>'''
 
+def find_apksigner():
+    """查找 apksigner 工具"""
+    # 1. 直接在 PATH 中查找
+    if shutil.which('apksigner'):
+        return 'apksigner'
+
+    # 2. 查找脚本同目录下的 build-tools
+    #    支持 build-tools/版本号/apksigner 或 build-tools/latest/apksigner
+    script_build_tools = os.path.join(SCRIPT_DIR, 'build-tools')
+    if os.path.isdir(script_build_tools):
+        # 查找最新版本
+        import glob
+        versions = glob.glob(os.path.join(script_build_tools, '*', 'apksigner'))
+        if versions:
+            return versions[-1]  # 返回最新版本
+
+    # 3. 常见系统路径
+    common_paths = [
+        '/usr/bin/apksigner',
+        '/usr/local/bin/apksigner',
+        os.path.expanduser('~/Android/Sdk/build-tools/*/apksigner'),
+        '/opt/android-sdk/build-tools/*/apksigner'
+    ]
+    for p in common_paths:
+        if '*' in p:
+            matches = glob.glob(p)
+            if matches:
+                return matches[-1]
+        elif os.path.exists(p):
+            return p
+
+    return None
+
 def sign_apk(apk_path, x509_path, pk8_path, output_path):
     """
     使用 apksigner 对 APK 进行签名
     """
-    # 检查签名工具
-    apksigner_cmd = 'apksigner'
-    if not shutil.which(apksigner_cmd):
-        # 尝试在常见路径查找
-        possible_paths = [
-            '/usr/bin/apksigner',
-            '/opt/android-sdk/build-tools/*/apksigner',
-            os.path.expanduser('~/Android/Sdk/build-tools/*/apksigner')
-        ]
-        for p in possible_paths:
-            if '*' in p:
-                import glob
-                matches = glob.glob(p)
-                if matches:
-                    apksigner_cmd = matches[-1]
-                    break
-            elif os.path.exists(p):
-                apksigner_cmd = p
-                break
+    apksigner_cmd = find_apksigner()
+    if not apksigner_cmd:
+        raise Exception("未找到 apksigner，请将 build-tools 复制到脚本目录下")
 
     cmd = [
         apksigner_cmd,
@@ -875,23 +892,26 @@ def main():
     if tools:
         print(f"[OK] 可用的签名工具: {', '.join(tools)}")
     else:
-        print("[WARNING] 未找到 apksigner，请下载 Android Build Tools")
+        print("[WARNING] 未找到 apksigner")
         print()
         print("=" * 50)
-        print("  apksigner 下载配置指南")
+        print("  apksigner 配置方法 (二选一)")
         print("=" * 50)
         print()
-        print("1. 下载 Build Tools (含 apksigner):")
-        print("   https://developer.android.com/tools/releases/build-tools?hl=zh-cn")
+        print("方法1 - 复制到脚本目录 (推荐):")
+        print("  1. 下载 Build Tools:")
+        print("    https://developer.android.com/tools/releases/build-tools?hl=zh-cn")
+        print("  2. 解压后将 build-tools 文件夹复制到 apk_signer.py 同目录")
+        print("     结构如下:")
+        print("       apk_signer.py")
+        print("       build-tools/")
+        print("         34.0.0/")
+        print("           apksigner  <-- 会自动找到")
+        print("           platform.x509.pem")
+        print("           platform.pk8")
         print()
-        print("2. 解压后在 build-tools/版本号/ 目录下找到 apksigner")
-        print()
-        print("3. 配置环境变量:")
-        print("   export PATH=$PATH:~/android-sdk/build-tools/34.0.0/")
-        print()
-        print("4. 签名文件位置:")
-        print("   platform.x509.pem 和 platform.pk8")
-        print("   通常在 build-tools/版本号/ 目录下")
+        print("方法2 - 配置环境变量:")
+        print("  export PATH=$PATH:~/android-sdk/build-tools/34.0.0/")
         print("=" * 50)
 
     # 查找可用端口

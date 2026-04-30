@@ -113,48 +113,47 @@ python3 apk_signer.py
 
 下载对应版本的 Build Tools（如 34.0.0）
 
-### 方法一：设置环境变量
+### 方法一：复制到脚本目录 (推荐)
 
-解压后配置环境变量：
-
-```bash
-export ANDROID_HOME=~/android-sdk
-export PATH=$PATH:$ANDROID_HOME/build-tools/34.0.0/
-```
-
-### 方法二：在配置中使用完整路径
-
-```json
-{
-  "targets": [
-    {
-      "androidVersion": "Android 10 (API 29)",
-      "signTarget": "版本A",
-      "platform_x509": "/home/user/android-sdk/build-tools/34.0.0/platform.x509.pem",
-      "platform_pk8": "/home/user/android-sdk/build-tools/34.0.0/platform.pk8"
-    }
-  ]
-}
-```
-
-### 方法三：使用相对路径（推荐）
-
-将签名文件放在脚本目录下：
+解压后将 `build-tools` 文件夹复制到 `apk_signer.py` 同目录：
 
 ```
 apk-sign/
 ├── apk_signer.py
 ├── config.json
-└── keys/
-    ├── platform.x509.pem
-    └── platform.pk8
+├── build-tools/
+│   └── 34.0.0/
+│       ├── apksigner          ← 自动找到
+│       ├── platform.x509.pem   ← 签名文件
+│       └── platform.pk8        ← 签名文件
 ```
 
-配置中直接写相对路径：
+签名文件路径配置（相对路径）：
 ```json
 {
-  "platform_x509": "keys/platform.x509.pem",
-  "platform_pk8": "keys/platform.pk8"
+  "targets": [
+    {
+      "androidVersion": "Android 10",
+      "signTarget": "版本A",
+      "platform_x509": "build-tools/34.0.0/platform.x509.pem",
+      "platform_pk8": "build-tools/34.0.0/platform.pk8"
+    }
+  ]
+}
+```
+
+### 方法二：设置环境变量
+
+```bash
+export PATH=$PATH:~/android-sdk/build-tools/34.0.0/
+```
+
+### 方法三：使用绝对路径
+
+```json
+{
+  "platform_x509": "/home/user/android-sdk/build-tools/34.0.0/platform.x509.pem",
+  "platform_pk8": "/home/user/android-sdk/build-tools/34.0.0/platform.pk8"
 }
 ```
 
