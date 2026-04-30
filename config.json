@@ -1,0 +1,41 @@
+{
+  "description": "APK签名配置文件",
+  "targets": [
+    {
+      "androidVersion": "Android 10 (API 29)",
+      "signTarget": "版本A",
+      "platform_x509": "/path/to/platform.x509.pem",
+      "platform_pk8": "/path/to/platform.pk8"
+    },
+    {
+      "androidVersion": "Android 10 (API 29)",
+      "signTarget": "版本B",
+      "platform_x509": "/path/to/other.x509.pem",
+      "platform_pk8": "/path/to/other.pk8"
+    },
+    {
+      "androidVersion": "Android 11 (API 30)",
+      "signTarget": "版本A",
+      "platform_x509": "/path/to/platform.x509.pem",
+      "platform_pk8": "/path/to/platform.pk8"
+    },
+    {
+      "androidVersion": "Android 11 (API 30)",
+      "signTarget": "版本B",
+      "platform_x509": "/path/to/other.x509.pem",
+      "platform_pk8": "/path/to/other.pk8"
+    },
+    {
+      "androidVersion": "Android 12 (API 31)",
+      "signTarget": "版本A",
+      "platform_x509": "/path/to/platform.x509.pem",
+      "platform_pk8": "/path/to/platform.pk8"
+    },
+    {
+      "androidVersion": "Android 13 (API 33)",
+      "signTarget": "版本A",
+      "platform_x509": "/path/to/platform.x509.pem",
+      "platform_pk8": "/path/to/platform.pk8"
+    }
+  ]
+}
