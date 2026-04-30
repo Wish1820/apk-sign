@@ -105,9 +105,63 @@ python3 apk_signer.py
 └─────────────────────────────────┘
 ```
 
+## Android SDK Build Tools 配置
+
+### 下载地址
+
+访问：https://developer.android.com/tools/releases/build-tools?hl=zh-cn
+
+下载对应版本的 Build Tools（如 34.0.0）
+
+### 方法一：设置环境变量
+
+解压后配置环境变量：
+
+```bash
+export ANDROID_HOME=~/android-sdk
+export PATH=$PATH:$ANDROID_HOME/build-tools/34.0.0/
+```
+
+### 方法二：在配置中使用完整路径
+
+```json
+{
+  "targets": [
+    {
+      "androidVersion": "Android 10 (API 29)",
+      "signTarget": "版本A",
+      "platform_x509": "/home/user/android-sdk/build-tools/34.0.0/platform.x509.pem",
+      "platform_pk8": "/home/user/android-sdk/build-tools/34.0.0/platform.pk8"
+    }
+  ]
+}
+```
+
+### 方法三：使用相对路径（推荐）
+
+将签名文件放在脚本目录下：
+
+```
+apk-sign/
+├── apk_signer.py
+├── config.json
+└── keys/
+    ├── platform.x509.pem
+    └── platform.pk8
+```
+
+配置中直接写相对路径：
+```json
+{
+  "platform_x509": "keys/platform.x509.pem",
+  "platform_pk8": "keys/platform.pk8"
+}
+```
+
 ## 注意事项
 
-- 确保签名文件路径正确且可读
-- 签名工具需要 `apksigner`，请安装 Android SDK Build Tools
+- 签名文件路径支持绝对路径和相对路径
+- 相对路径基于脚本所在目录解析
+- 签名工具需要 `apksigner`（Android SDK Build Tools 内置）
 - 临时文件会在签名后自动清理
 - 服务启动后会持续运行，直到按 Ctrl+C 停止

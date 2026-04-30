@@ -875,7 +875,24 @@ def main():
     if tools:
         print(f"[OK] 可用的签名工具: {', '.join(tools)}")
     else:
-        print("[WARNING] 未找到 apksigner 或 jarsigner，请确保已安装 Android SDK Build Tools")
+        print("[WARNING] 未找到 apksigner，请下载 Android Build Tools")
+        print()
+        print("=" * 50)
+        print("  apksigner 下载配置指南")
+        print("=" * 50)
+        print()
+        print("1. 下载 Build Tools (含 apksigner):")
+        print("   https://developer.android.com/tools/releases/build-tools?hl=zh-cn")
+        print()
+        print("2. 解压后在 build-tools/版本号/ 目录下找到 apksigner")
+        print()
+        print("3. 配置环境变量:")
+        print("   export PATH=$PATH:~/android-sdk/build-tools/34.0.0/")
+        print()
+        print("4. 签名文件位置:")
+        print("   platform.x509.pem 和 platform.pk8")
+        print("   通常在 build-tools/版本号/ 目录下")
+        print("=" * 50)
 
     # 查找可用端口
     port = find_available_port(DEFAULT_PORT, MAX_PORT_ATTEMPTS)
