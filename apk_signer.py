@@ -710,11 +710,23 @@ def sign_apk(apk_path, x509_path, pk8_path, output_path):
         # 优先使用本地 JDK 的 java 命令
         local_java = find_local_java()
         if local_java:
-            cmd = f'"{local_java}" -jar "{jar_path}" sign --key "{pk8_path}" --cert "{x509_path}" --out "{output_path}" --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true "{apk_path}"'
+            java_cmd = local_java
         else:
-            cmd = f'{cmd_prefix} "{jar_path}" sign --key "{pk8_path}" --cert "{x509_path}" --out "{output_path}" --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true "{apk_path}"'
-        print(f"[DEBUG] 执行命令: {cmd}")
-        result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+            java_cmd = 'java'
+
+        cmd = [
+            java_cmd, '-jar', jar_path,
+            'sign',
+            '--key', pk8_path,
+            '--cert', x509_path,
+            '--out', output_path,
+            '--v1-signing-enabled', 'false',
+            '--v2-signing-enabled', 'true',
+            '--v3-signing-enabled', 'true',
+            apk_path
+        ]
+        print(f"[DEBUG] 执行命令: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True)
     else:
         cmd = [
             apksigner,
